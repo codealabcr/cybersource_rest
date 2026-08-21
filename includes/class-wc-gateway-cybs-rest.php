@@ -578,16 +578,60 @@ class WC_Gateway_Cybs_REST extends WC_Payment_Gateway {
 			),
 		);
 		if ( 'yes' === $this->enable_3ds ) {
-			$mapping = array(
-				'cavv' => 'cavv', 'xid' => 'xid', 'eciRaw' => 'eciRaw', 'directoryServerTransactionId' => 'directoryServerTransactionId',
-				'authenticationTransactionId' => 'authenticationTransactionId', 'specificationVersion' => 'paSpecificationVersion',
-				'ucafAuthenticationData' => 'ucafAuthenticationData', 'ucafCollectionIndicator' => 'ucafCollectionIndicator',
-			);
-			foreach ( $mapping as $source => $target ) {
-				if ( ! empty( $auth[ $source ] ) ) $payload['consumerAuthenticationInformation'][ $target ] = $auth[ $source ];
+			$authentication_information = $this->consumer_authentication_information( $card['type'], $auth );
+			if ( $authentication_information ) {
+				$payload['consumerAuthenticationInformation'] = $authentication_information;
 			}
 		}
 		return $payload;
+	}
+
+	private function consumer_authentication_information( $card_type, array $auth ) {
+		$info = array();
+		$mapping = array(
+			'xid'                              => 'xid',
+			'eciRaw'                           => 'eciRaw',
+			'directoryServerTransactionId'     => 'directoryServerTransactionId',
+			'authenticationTransactionId'      => 'authenticationTransactionId',
+			'specificationVersion'             => 'paSpecificationVersion',
+		);
+		foreach ( $mapping as $source => $target ) {
+			if ( ! empty( $auth[ $source ] ) ) {
+				$info[ $target ] = $auth[ $source ];
+			}
+		}
+
+		if ( '002' === $card_type ) {
+			$aav = $auth['ucafAuthenticationData'] ?? $auth['cavv'] ?? '';
+			if ( '' !== (string) $aav ) {
+				$info['ucafAuthenticationData'] = $aav;
+			}
+			if ( ! empty( $auth['ucafCollectionIndicator'] ) ) {
+				$info['ucafCollectionIndicator'] = $auth['ucafCollectionIndicator'];
+			} else {
+				$indicator = $this->mastercard_ucaf_collection_indicator( $auth );
+				if ( '' !== $indicator ) {
+					$info['ucafCollectionIndicator'] = $indicator;
+				}
+			}
+			return $info;
+		}
+
+		if ( ! empty( $auth['cavv'] ) ) {
+			$info['cavv'] = $auth['cavv'];
+		}
+		return $info;
+	}
+
+	private function mastercard_ucaf_collection_indicator( array $auth ) {
+		$eci = ltrim( (string) ( $auth['eci'] ?? $auth['eciRaw'] ?? '' ), '0' );
+		if ( '2' === $eci ) {
+			return '2';
+		}
+		if ( '1' === $eci ) {
+			return '1';
+		}
+		return '';
 	}
 
 	private function build_line_items( WC_Order $order ) {
