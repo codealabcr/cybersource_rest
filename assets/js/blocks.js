@@ -49,7 +49,7 @@
 	}
 
 	const labelText = decode(settings.title || 'Tarjeta de credito o debito');
-	function Label(props) { return el(props.components.PaymentMethodLabel, {text:labelText)}); }
+	function Label(props) { return el(props.components.PaymentMethodLabel, {text:labelText}); }
 
 	register({
 		name:'cybersource_rest',
